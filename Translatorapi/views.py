@@ -1,7 +1,10 @@
 import tempfile
 import magic
 import PyPDF2
+from PyPDF2 import PdfReader
 import docx2txt
+import subprocess
+import os
 
 from django.shortcuts import render
 
@@ -39,63 +42,59 @@ class SaveAudioView(APIView):
 
 
 
-class SavePdfView(APIView):
+
+class ConvertFileView(APIView):
     def post(self, request, format=None):
-        name = request.data.get("name")
-        pdf_file = request.FILES.get("file")
-        pdf_data = {"name": name, "file": pdf_file}
-        serializer = PdfSerializer(data=pdf_data)
+        file_data = request.FILES.get("file")
         
-        if serializer.is_valid():
-            serializer.save()
-            
-            # Convert the uploaded PDF file to text
-            self.convert_to_text(pdf_file)
-            
-            return Response(serializer.data)
+        # Save the uploaded file temporarily
+        with tempfile.NamedTemporaryFile(suffix='.' + file_data.name.split('.')[-1], delete=False) as temp_file:
+            temp_file.write(file_data.read())
+            temp_file_path = temp_file.name
         
-        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+        # Convert the file to text
+        text_content = self.convert_to_text(temp_file_path)
+        
+        # Remove the temporary file
+        os.remove(temp_file_path)
+        
+        if text_content:
+            return Response({'text_content': text_content})
+        
+        return Response({'error': 'Unsupported file format'}, status=status.HTTP_400_BAD_REQUEST)
 
-    def convert_to_text(self, pdf_file):
-        with tempfile.NamedTemporaryFile(suffix='.pdf', delete=False) as temp_pdf:
-            temp_pdf.write(pdf_file.read())
-            temp_pdf_path = temp_pdf.name
-
-        file_type = magic.from_file(temp_pdf_path, mime=True)
+    def convert_to_text(self, file_path):
+        file_type = magic.from_file(file_path, mime=True)
         
-        if file_type == 'application/pdf':
-            self.convert_pdf_to_text(temp_pdf_path)
-        elif file_type == 'application/msword':
-            self.convert_doc_to_text(temp_pdf_path)
+        if 'application/pdf' in file_type:
+            return self.convert_pdf_to_text(file_path)
+        elif 'application/msword' in file_type or 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' in file_type:
+            return self.convert_doc_to_text(file_path)
+        elif 'text/plain' in file_type:
+            return self.read_text_file(file_path)
         else:
-            print("Unsupported file format:", file_type)
+            return None
 
     def convert_pdf_to_text(self, pdf_path):
-        text_path = pdf_path[:-4] + '.txt'
-
         with open(pdf_path, 'rb') as pdf_file:
-            pdf_reader = PyPDF2.PdfFileReader(pdf_file)
-            text_content = []
+            pdf_reader = PdfReader(pdf_file)
+            text_content = [page.extract_text() for page in pdf_reader.pages]
+            text_content = '\n'.join(text_content)
 
-            for page_num in range(pdf_reader.numPages):
-                page = pdf_reader.getPage(page_num)
-                text_content.append(page.extract_text())
+            print(text_content)
 
-            with open(text_path, 'w', encoding='utf-8') as text_file:
-                text_file.write('\n'.join(text_content))
-
-        print("PDF converted to text successfully.")
+        return text_content
 
     def convert_doc_to_text(self, doc_path):
-        text_path = doc_path[:-4] + '.txt'
         text_content = docx2txt.process(doc_path)
 
-        with open(text_path, 'w', encoding='utf-8') as text_file:
-            text_file.write(text_content)
+        return text_content
 
-        print("DOC converted to text successfully.")
+    def read_text_file(self, file_path):
+        with open(file_path, 'r', encoding='utf-8') as text_file:
+            text_content = text_file.read()
 
-
+        return text_content
 
      
 class SaveLinkView(APIView):
