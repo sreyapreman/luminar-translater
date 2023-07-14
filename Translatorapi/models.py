@@ -2,7 +2,7 @@ from django.db import models
 
 class Audio(models.Model):
     name=models.CharField(max_length=100)
-    file=models.FileField(upload_to='audios/')
+    file=models.FileField(upload_to='uploadedaudios/')
     language=models.CharField(max_length=50,null=True,blank=True)
     uploaded_at=models.DateTimeField(auto_now_add=True)
 
@@ -11,7 +11,7 @@ class Audio(models.Model):
 
 class Video(models.Model):
     name=models.CharField(max_length=100,null=True,blank=True)
-    video_file=models.FileField(upload_to='videos/')
+    video_file=models.FileField(upload_to='uploadedvideos/')
     language=models.CharField(max_length=50,null=True,blank=True)
     uploaded_at=models.DateTimeField(auto_now_add=True)
 
@@ -20,7 +20,7 @@ class Video(models.Model):
 
 class PDF(models.Model):
     name=models.CharField(max_length=100)
-    file=models.FileField(upload_to='pdfs/')
+    file=models.FileField(upload_to='uploadedpdfs/')
     language=models.CharField(max_length=50,null=True,blank=True)
     uploaded_at=models.DateTimeField(auto_now_add=True)
 

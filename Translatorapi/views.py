@@ -8,23 +8,62 @@ import os
 
 from django.shortcuts import render
 
-from .models import Video
+from Translatorapi.models import Video
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status
-from .serializers import VideoSerializer, AudioSerializer, PdfSerializer,LinkSerializer
+from Translatorapi.serializers import VideoSerializer, AudioSerializer, PdfSerializer,LinkSerializer
+
+from moviepy.editor import VideoFileClip
+from pydub import AudioSegment
+from django.conf import settings
+
+
+
+
+
+
+
+
+from django.http import HttpResponse
+import datetime
+import uuid
 
 class SaveVideoView(APIView):
     def post(self, request, format=None):
         name = request.data.get("name")
-        video_data = {"name": name, "video_file": request.FILES.get("video_file")}
+        video_file = request.FILES.get("video_file")
+        video_data = {"name": name, "video_file": video_file}
         serializer = VideoSerializer(data=video_data)
-        
+
         if serializer.is_valid():
-            serializer.save()
-            return Response(serializer.data)
-        
+            saved_video = serializer.save()
+            video_path = saved_video.video_file.path
+
+            # Convert video to audio
+            video_clip = VideoFileClip(video_path)
+            audio = video_clip.audio
+
+            # Generate a unique file name with timestamp and UUID
+            timestamp = datetime.datetime.now().strftime('%Y%m%d%H%M%S')
+            unique_id = str(uuid.uuid4())[:8]
+            file_name = f"extractedaudio_{timestamp}_{unique_id}.mp3"
+
+            # Define the target audio file path within the 'audio' folder
+            target_folder = os.path.join(settings.BASE_DIR, 'audio')
+            target_file = os.path.join(target_folder, file_name)
+
+            # Save audio to the target file path
+            audio.write_audiofile(target_file)
+
+            # Return success response
+            return HttpResponse(f"Audio saved in {target_file}")
+
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+
+    
+
 
 class SaveAudioView(APIView):
     def post(self, request, format=None):
